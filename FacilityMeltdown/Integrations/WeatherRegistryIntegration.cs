@@ -11,11 +11,13 @@ class WeatherRegistryIntegration {
 	[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
 	static void Initialize() {
 		Enabled = true;
-	}
+        MeltdownPlugin.logger.LogDebug("WeatherRegistryIntergration");
+    }
 
 	[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
 	internal static float GetWeatherMultiplier() {
 		if (!Enabled || !MeltdownPlugin.config.WeatherRegistryIntegration) return 1;
-		return WeatherManager.GetCurrentWeather(RoundManager.Instance.currentLevel).ScrapValueMultiplier;
+        MeltdownPlugin.logger.LogDebug("wah");
+        return WeatherManager.GetCurrentWeather(RoundManager.Instance.currentLevel).ScrapValueMultiplier;
 	}
 }

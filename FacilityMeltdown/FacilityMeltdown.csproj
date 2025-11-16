@@ -33,13 +33,20 @@
 		<PackageReference Include="UnityEngine.Modules" Version="2022.3.62" IncludeAssets="compile" PrivateAssets="all" />
 
 		<PackageReference Include="mrov.WeatherRegistry" Publicize="true" Version="*" />
+		<PackageReference Include="TeamXiaolan.DawnLib" Publicize="true" Version="*" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
 		<PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
 	</ItemGroup>
+	<ItemGroup Condition="$(CI) != 'true'">
+		<Reference Include="FacilityMeltdown.API">
+			<HintPath>D:\Runtime dependencies (local)\BepInEx\plugins\loaforc-loaforcsSoundAPI\loaforcsSoundAPI\me.loaforc.soundapi.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 
-	<ItemGroup>
+
+		<ItemGroup>
 	  <Reference Include="LethalConfig">
 	    <HintPath>..\Dependencies\LethalConfig.dll</HintPath>
 	  </Reference>

@@ -1,15 +1,16 @@
 ﻿using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
+using Dawn;
 using FacilityMeltdown.Behaviours;
 using FacilityMeltdown.Config;
 using FacilityMeltdown.Equipment;
 using FacilityMeltdown.Integrations;
+using FacilityMeltdown.Integrations.SoundAPI;
 using FacilityMeltdown.Lang;
 using FacilityMeltdown.MeltdownSequence.Behaviours;
 using FacilityMeltdown.Util.Attributes;
 using HarmonyLib;
-using LethalLib.Modules;
 using LobbyCompatibility.Attributes;
 using LobbyCompatibility.Enums;
 using System;
@@ -25,16 +26,22 @@ using UnityEngine.SceneManagement;
 namespace FacilityMeltdown;
 
 [BepInPlugin(modGUID, modName, modVersion)]
+[BepInDependency("com.github.teamxiaolan.dawnlib", BepInDependency.DependencyFlags.HardDependency)]
+[BepInDependency("ainavt.lc.lethalconfig", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("com.willis.lc.lethalsettings", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("BMX.LobbyCompatibility", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("mrov.WeatherRegistry", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("me.loaforc.soundapi", BepInDependency.DependencyFlags.SoftDependency)]
 [CompatibleDependency("ainavt.lc.lethalconfig", typeof(LethalConfigIntergration))]
 [CompatibleDependency("com.willis.lc.lethalsettings", typeof(LethalSettingsIntegration))]
 [CompatibleDependency("BMX.LobbyCompatibility", typeof(LobbyCompatibilityIntegration))]
 [CompatibleDependency("mrov.WeatherRegistry", typeof(WeatherRegistryIntegration))]
-[BepInDependency("evaisa.lethallib")]
+[CompatibleDependency("me.loaforc.soundapi", typeof(SoundAPIIntegration))]
 public class MeltdownPlugin : BaseUnityPlugin
 {
     internal const string modGUID = "me.loaforc.facilitymeltdown";
     internal const string modName = "FacilityMeltdown";
-    internal const string modVersion = "2.6.15";
+    internal const string modVersion = "2.7.3";
 
     internal static MeltdownPlugin instance;
     internal static ManualLogSource logger;
@@ -112,7 +119,22 @@ public class MeltdownPlugin : BaseUnityPlugin
     {
         logger.LogInfo("Registering Items");
 
-        Items.RegisterShopItem(MeltdownPlugin.assets.geigerCounterItemDef, null, null, MeltdownPlugin.assets.geigerCounterNode, 90);
+        DawnLib.DefineItem(MeltdownKeys.GeigerCounter, MeltdownPlugin.assets.geigerCounterItemDef, delegate (ItemInfoBuilder item)
+        {
+            item.DefineShop(delegate (ItemInfoBuilder.ShopBuilder shopItem)
+            {
+                shopItem.OverrideCost(90).OverrideInfoNode(MeltdownPlugin.assets.geigerCounterNode);
+            });
+        });
+        LethalContent.Items.OnFreeze += delegate
+        {
+            if (!MeltdownPlugin.config.OverrideApparatusValue)
+            {
+                return;
+            }
+            LethalContent.Items[ItemKeys.Apparatus].Item.minValue = MeltdownPlugin.config.ApparatusValue;
+            LethalContent.Items[ItemKeys.Apparatus].Item.maxValue = MeltdownPlugin.config.ApparatusValue;
+        };
     }
 
     

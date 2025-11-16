@@ -46,6 +46,12 @@ namespace FacilityMeltdown.Config
         [ConfigRange(1, 10)]
         public int MinPeopleToPullApparatus { get; private set; } = 2;
 
+        [ConfigDesc("Should baby maneater's enter a crying state when Meltdown starts?")]
+        public bool ScareBabyManeaters { get; private set; } = true;
+
+        [ConfigDesc("Should the meltdown timer be shortened when taking off from the ship so the explosion can be seen every time?")]
+        public bool ShortenMeltdownTimerOnShipLeave { get; private set; } = true;
+
 
         // todo: look into maybe a custom tomltypeconverter and make this cleaner?
         [ConfigDesc("What enemies to exclude from spawning in the meltdown sequence. Comma seperated list. Supports modded entities.")]

@@ -32,9 +32,18 @@ internal class CompatibleDependencyAttribute : BepInDependency {
         const BindingFlags bindingFlags = BindingFlags.NonPublic | BindingFlags.Static;
 
         IEnumerable<CompatibleDependencyAttribute> attributes = source.GetType().GetCustomAttributes<CompatibleDependencyAttribute>();
-        foreach (CompatibleDependencyAttribute attr in attributes) {
-            if (Chainloader.PluginInfos.ContainsKey(attr.DependencyGUID)) {
-                attr.Handler.GetMethod("Initialize", bindingFlags)?.Invoke(null, null);
+        foreach (CompatibleDependencyAttribute attr in attributes)
+        {
+            if (Chainloader.PluginInfos.ContainsKey(attr.DependencyGUID))
+            {
+                try
+                {
+                    attr.Handler.GetMethod("Initialize", bindingFlags)?.Invoke(null, null);
+                }
+                catch (Exception exception)
+                {
+                    MeltdownPlugin.logger.LogError(exception.ToString());
+                }
                 attr.Handler = null;
             }
         }
