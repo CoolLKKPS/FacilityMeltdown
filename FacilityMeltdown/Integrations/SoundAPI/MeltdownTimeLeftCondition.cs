@@ -19,7 +19,7 @@ namespace FacilityMeltdown.Integrations.SoundAPI
 		public override List<IValidatable.ValidationResult> Validate()
 		{
 			IValidatable.ValidationResult result;
-			if (base.ValidateRangeOperator(this.Value, ref result))
+			if (base.ValidateRangeOperator(this.Value, out result))
 			{
 				return new List<IValidatable.ValidationResult>(1) { result };
 			}

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FacilityMeltdown.API;
 using FacilityMeltdown.Behaviours;
 using FacilityMeltdown.Integrations;
+using FacilityMeltdown.MeltdownSequence.Behaviours;
 using FacilityMeltdown.Util;
 using GameNetcodeStuff;
 using HarmonyLib;
@@ -18,52 +19,62 @@ namespace FacilityMeltdown.Patches
     [HarmonyPatch(typeof(LungProp))]
     static class ApparaticePatch
     {
-        [HarmonyPrefix, HarmonyPatch(nameof(LungProp.EquipItem))]
+        [HarmonyPrefix, HarmonyPatch(nameof(LungProp.EquipItem)), HarmonyWrapSafe]
         internal static void BeginMeltdownSequence(LungProp __instance, ref bool ___isLungDocked)
         {
             if (!__instance.IsHost) return;
             if (!___isLungDocked) return;
             if (MeltdownAPI.MeltdownStarted) return;
+            GameObject meltdown = GameObject.Instantiate(MeltdownPlugin.assets.meltdownHandlerPrefab);
+            meltdown.GetComponent<MeltdownHandler>().causingLungProp = __instance;
+            meltdown.GetComponent<NetworkObject>().Spawn();
+        }
 
-            // We just took it out
-            try
-            { // make sure to surround in try catch because this is a prefix
-                if (MeltdownPlugin.config.OverrideApparatusValue)
-                    __instance.scrapValue = Mathf.RoundToInt(MeltdownPlugin.config.ApparatusValue * WeatherRegistryIntegration.GetWeatherMultiplier());
-                GameObject meltdown = GameObject.Instantiate(MeltdownPlugin.assets.meltdownHandlerPrefab);
-                meltdown.GetComponent<NetworkObject>().Spawn();
-            }
-            catch (Exception ex)
+        [HarmonyFinalizer, HarmonyPatch(nameof(LungProp.EquipItem)), HarmonyWrapSafe]
+        private static void CatchOtherModsBreakingRandomStuff(LungProp __instance, Exception __exception)
+        {
+            if (!__instance.IsHost)
             {
-                MeltdownPlugin.logger.LogError(ex);
+                return;
             }
+            MeltdownPlugin.logger.LogDebug("finalizer is running..");
+            if (!__instance.isLungDocked)
+            {
+                return;
+            }
+            MeltdownPlugin.logger.LogError("!!! isLungDocked is still true, things are broken! It'll try to salvage it to make sure nothing is very broken, but the meltdown sequence may not have started!");
+            __instance.isLungDocked = false;
         }
 
 
-
-        [HarmonyPrefix, HarmonyPatch(nameof(LungProp.Start))]
+        [HarmonyPrefix, HarmonyPatch(nameof(LungProp.Start)), HarmonyWrapSafe]
         internal static void AddRadiationSource(LungProp __instance)
         {
-            MeltdownMoonMapper.EnsureMeltdownMoonMapper();
-            MeltdownInteriorMapper.EnsureMeltdownInteriorMapper();
-
-            try
+            if (!StartOfRound.Instance.inShipPhase)
             {
-                RadiationSource source = __instance.gameObject.AddComponent<RadiationSource>();
-                source.radiationAmount = 80;
-                source.radiationDistance = 60;
-
                 MeltdownMoonMapper.EnsureMeltdownMoonMapper();
+                MeltdownInteriorMapper.EnsureMeltdownInteriorMapper();
+            }
+            RadiationSource source = __instance.gameObject.AddComponent<RadiationSource>();
+            source.radiationAmount = 80;
+            source.radiationDistance = 60;
 
-                if (MeltdownPlugin.config.OverrideApparatusValue)
-                    __instance.scrapValue = Mathf.RoundToInt(MeltdownPlugin.config.ApparatusValue * WeatherRegistryIntegration.GetWeatherMultiplier());
-                MeltdownPlugin.logger.LogDebug(__instance.scrapValue);
-                //___isLungDocked = false; // fix joining late
-            }
-            catch (Exception ex)
+            if (MeltdownPlugin.config.OverrideApparatusValue)
             {
-                MeltdownPlugin.logger.LogError(ex);
+                __instance.scrapValue = Mathf.RoundToInt((float)MeltdownPlugin.config.ApparatusValue);
+                try
+                {
+                    if (WeatherRegistryIntegration.Enabled)
+                    {
+                        __instance.scrapValue = Mathf.RoundToInt((float)__instance.scrapValue * WeatherRegistryIntegration.GetWeatherMultiplier());
+                    }
+                }
+                catch (Exception exception)
+                {
+                    MeltdownPlugin.logger.LogWarning(exception.ToString());
+                }
             }
+            MeltdownPlugin.logger.LogDebug(__instance.scrapValue);
         }
     }
 }

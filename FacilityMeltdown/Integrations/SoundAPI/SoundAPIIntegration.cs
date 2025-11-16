@@ -1,32 +1,30 @@
 ﻿using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using FacilityMeltdown;
 using loaforcsSoundAPI;
 
-namespace FacilityMeltdown.Integrations.SoundAPI
+internal static class SoundAPIIntegration
 {
-	internal static class SoundAPIIntegration
+	public static bool Enabled { get; private set; }
+
+	[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+	private static void Initialize()
 	{
-		public static bool Enabled { get; private set; }
-
-		[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-		private static void Initialize()
+		Enabled = true;
+		try
 		{
-			SoundAPIIntegration.Enabled = true;
-			try
-			{
-				SoundAPIIntegration.Register();
-			}
-			catch (Exception exception)
-			{
-				MeltdownPlugin.logger.LogWarning("Failed to register SoundAPI conditions, probably v1 and not v2.");
-			}
+			Register();
 		}
-
-		[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
-		private static void Register()
+		catch (Exception)
 		{
-			SoundAPI.RegisterAll(Assembly.GetExecutingAssembly());
+			MeltdownPlugin.logger.LogWarning("Failed to register SoundAPI conditions, probably v1 and not v2.");
 		}
+	}
+
+	[MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+	private static void Register()
+	{
+		SoundAPI.RegisterAll(Assembly.GetExecutingAssembly());
 	}
 }

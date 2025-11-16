@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using Dawn;
 using FacilityMeltdown.API;
 using FacilityMeltdown.Behaviours;
 using FacilityMeltdown.Lang;
@@ -30,6 +31,7 @@ public class MeltdownHandler : NetworkBehaviour
 
     internal float meltdownTimer;
     bool meltdownStarted = false;
+    internal LungProp causingLungProp;
 
     GameObject explosion, shockwave;
 
@@ -146,16 +148,11 @@ public class MeltdownHandler : NetworkBehaviour
 
         if (GameNetworkManager.Instance.localPlayerController.IsServer)
         {
-            SpawnEnemies();
+            HandleEnemies();
         }
 
         timer.Restart();
 
-        if (effectOrigin == Vector3.zero)
-        {
-            MeltdownPlugin.logger.LogError("Effect Origin is Vector3.Zero! We couldn't find the effect origin");
-            HUDManager.Instance.DisplayGlobalNotification("Failed to find effect origin... Things will look broken.");
-        }
 
         if (MeltdownPlugin.clientConfig.ScreenShake)
         {
@@ -172,31 +169,32 @@ public class MeltdownHandler : NetworkBehaviour
         meltdownStarted = true;
     }
 
-    void SpawnEnemies()
+    void HandleEnemies()
     {
         Stopwatch timer = Stopwatch.StartNew();
         List<string> disallowed = MeltdownPlugin.config.GetDisallowedEnemies();
-        List<SpawnableEnemyWithRarity> spawnProbibilities = RoundManager.Instance.currentLevel.Enemies.Where(enemy =>
+        List<SpawnableEnemyWithRarity> spawnProbibilities = RoundManager.Instance.currentLevel.Enemies.Where(delegate (SpawnableEnemyWithRarity spawnableEnemyWithRarity)
         {
-            return !EnemyCannotBeSpawned(enemy.enemyType) && !disallowed.Contains(enemy.enemyType.enemyName);
+            DawnEnemyInfo dawnInfo = spawnableEnemyWithRarity.enemyType.GetDawnInfo();
+            return !EnemyCannotBeSpawned(spawnableEnemyWithRarity.enemyType) && !disallowed.Contains(spawnableEnemyWithRarity.enemyType.enemyName) && spawnableEnemyWithRarity.rarity > 0 && !dawnInfo.HasTag(MeltdownTags.NotSpawnable) && !dawnInfo.HasTag(Tags.Unimplemented);
         }).ToList();
 
         timer.Stop();
         MeltdownPlugin.logger.LogDebug($"Filtering enemies: {timer.ElapsedMilliseconds}ms");
 
         timer.Restart();
-        List<EnemyVent> avaliableVents = RoundManager.Instance.allEnemyVents.Where(vent => !vent.occupied).ToList();
+        List<EnemyVent> avaliableVents = RoundManager.Instance.allEnemyVents.Where((EnemyVent enemyVent) => !enemyVent.occupied).ToList();
         timer.Stop();
         MeltdownPlugin.logger.LogDebug($"Filtering vents: {timer.ElapsedMilliseconds}ms");
         timer.Restart();
 
 
+        System.Random random = new System.Random(StartOfRound.Instance.randomMapSeed + 1923847);
         for (int i = 0; i < Mathf.Min(MeltdownPlugin.config.MonsterSpawnAmount, avaliableVents.Count); i++)
         {
-            EnemyVent vent = avaliableVents[Random.Range(0, avaliableVents.Count)];
+            EnemyVent vent = avaliableVents[random.Next(0, avaliableVents.Count)];
             avaliableVents.Remove(vent);
-            SpawnableEnemyWithRarity enemy = spawnProbibilities[Random.Range(0, avaliableVents.Count)];
-
+            SpawnableEnemyWithRarity enemy = spawnProbibilities[random.Next(0, spawnProbibilities.Count)];
             RoundManager.Instance.currentEnemyPower += enemy.enemyType.PowerLevel;
             MeltdownPlugin.logger.LogInfo("Spawning a " + enemy.enemyType.enemyName + " during the meltdown sequence");
             vent.SpawnEnemy(enemy);
@@ -205,12 +203,29 @@ public class MeltdownHandler : NetworkBehaviour
         timer.Stop();
         MeltdownPlugin.logger.LogDebug($"Spawning enemies: {timer.ElapsedMilliseconds}ms");
 
+        if (!MeltdownPlugin.config.ScareBabyManeaters || !causingLungProp)
+        {
+            return;
+        }
+        CaveDwellerAI[] array = UnityEngine.Object.FindObjectsOfType<CaveDwellerAI>();
+        foreach (CaveDwellerAI maneater in array)
+        {
+            if (maneater.currentBehaviourStateIndex == 0)
+            {
+                maneater.ScareBaby(causingLungProp.transform.position);
+            }
+        }
     }
 
     public override void OnNetworkSpawn()
     {
-        if (!MeltdownPlugin.loadedFully || !IsHost)
+        if (!MeltdownPlugin.loadedFully || !IsServer)
         {
+            return;
+        }
+        if (this.effectOrigin == Vector3.zero)
+        {
+            MeltdownPlugin.logger.LogError("effectOrigin == Vector3.zero, meltdown will not start.");
             return;
         }
         StartMeltdownClientRpc();
@@ -302,23 +317,21 @@ public class MeltdownHandler : NetworkBehaviour
         yield return new WaitForSeconds(3f); // Wait for explosion
         yield return new WaitForSeconds(3f);
         HUDManager.Instance.shipLeavingEarlyIcon.enabled = false;
-        StartMatchLever startMatchLever = FindObjectOfType<StartMatchLever>();
+        StartMatchLever startMatchLever = UnityEngine.Object.FindObjectOfType<StartMatchLever>();
         startMatchLever.triggerScript.animationString = "SA_PushLeverBack";
         startMatchLever.leverHasBeenPulled = false;
         startMatchLever.triggerScript.interactable = false;
-        startMatchLever.leverAnimatorObject.SetBool("pullLever", false);
+        startMatchLever.leverAnimatorObject.SetBool("pullLever", value: false);
         shipManager.ShipLeave();
         yield return new WaitForSeconds(1.5f);
-        shipManager.SetSpectateCameraToGameOverMode(true, null);
+        shipManager.SetSpectateCameraToGameOverMode(enableGameOver: true);
         if (GameNetworkManager.Instance.localPlayerController.isPlayerDead)
         {
-            GameNetworkManager.Instance.localPlayerController.SetSpectatedPlayerEffects(true);
+            GameNetworkManager.Instance.localPlayerController.SetSpectatedPlayerEffects(allPlayersDead: true);
         }
         yield return new WaitForSeconds(1f);
 
         yield return new WaitForSeconds(9.5f);
-
-        yield break;
     }
 
     public bool HasExplosionOccured()
